@@ -1,92 +1,113 @@
 @page "/"
 @using HistorySim.Game
+@inject HttpClient Http
 
-<div class="viewport" tabindex="0" @onkeydown="HandleKey" @ref="_viewportRef">
-  <section class="hud">
-    <header>
-      <h1>HistorySim Terrain Prototype</h1>
-      <small>Seed <strong>@_world.Settings.Seed</strong></small>
-    </header>
+@if (_world is null)
+{
+  <div class="loading-panel">
+    <h1>Generating terrain…</h1>
+    <p>Preparing noise maps and climate bands.</p>
+  </div>
+}
+else
+{
+  var map = _world.Map;
+  var current = map[_cursor];
 
-    <dl class="stats">
-      <div>
-        <dt>Cursor</dt>
-        <dd>@_cursor.X , @_cursor.Y</dd>
-      </div>
-      <div>
-        <dt>Biome</dt>
-        <dd>@CurrentTile.Biome</dd>
-      </div>
-      <div>
-        <dt>Elevation</dt>
-        <dd>@CurrentTile.Elevation.ToString("0.00")</dd>
-      </div>
-      <div>
-        <dt>Temperature</dt>
-        <dd>@CurrentTile.Temperature.ToString("0.00")</dd>
-      </div>
-      <div>
-        <dt>Moisture</dt>
-        <dd>@CurrentTile.Moisture.ToString("0.00")</dd>
-      </div>
-    </dl>
+  <div class="viewport" tabindex="0" @onkeydown="HandleKey" @ref="_viewportRef">
+    <section class="hud">
+      <header>
+        <h1>HistorySim Terrain Prototype</h1>
+        <small>Seed <strong>@_world.Settings.Seed</strong></small>
+      </header>
 
-    <section class="legend">
-      <h2>Legend</h2>
-      <ul>
-        <li><span class="swatch biome-deepocean"></span>Deep ocean</li>
-        <li><span class="swatch biome-ocean"></span>Ocean</li>
-        <li><span class="swatch biome-coast"></span>Coast</li>
-        <li><span class="swatch biome-plains"></span>Plains</li>
-        <li><span class="swatch biome-desert"></span>Desert</li>
-        <li><span class="swatch biome-jungle"></span>Jungle</li>
-        <li><span class="swatch biome-snow"></span>Snow</li>
-      </ul>
+      <dl class="stats">
+        <div>
+          <dt>Cursor</dt>
+          <dd>@_cursor.X , @_cursor.Y</dd>
+        </div>
+        <div>
+          <dt>Biome</dt>
+          <dd>@current.Biome</dd>
+        </div>
+        <div>
+          <dt>Elevation</dt>
+          <dd>@current.Elevation.ToString("0.00")</dd>
+        </div>
+        <div>
+          <dt>Temperature</dt>
+          <dd>@current.Temperature.ToString("0.00")</dd>
+        </div>
+        <div>
+          <dt>Moisture</dt>
+          <dd>@current.Moisture.ToString("0.00")</dd>
+        </div>
+      </dl>
+
+      <section class="legend">
+        <h2>Legend</h2>
+        <ul>
+          <li><span class="swatch biome-deepocean"></span>Deep ocean</li>
+          <li><span class="swatch biome-ocean"></span>Ocean</li>
+          <li><span class="swatch biome-coast"></span>Coast</li>
+          <li><span class="swatch biome-plains"></span>Plains</li>
+          <li><span class="swatch biome-desert"></span>Desert</li>
+          <li><span class="swatch biome-jungle"></span>Jungle</li>
+          <li><span class="swatch biome-snow"></span>Snow</li>
+        </ul>
+      </section>
+
+      <footer>
+        <p>Controls: WASD / Arrow keys move ・ R regenerate current seed ・ Space random seed</p>
+      </footer>
     </section>
 
-    <footer>
-      <p>
-        Controls: WASD / Arrow keys to move ・ R regenerate ・ Space new seed
-      </p>
-    </footer>
-  </section>
-
-  <section class="map" style="@($"grid-template-columns: repeat({_world.Map.Width}, var(--cell-size));")">
-    @for (var y = 0; y < _world.Map.Height; y++)
-    {
-      for (var x = 0; x < _world.Map.Width; x++)
+    <section class="map" style="@GetGridTemplate(map.Width)">
+      @for (var y = 0; y < map.Height; y++)
       {
-        var tile = _world.Map[x, y];
-        <span class="@GetTileClass(tile, x, y)" title="@GetTileTooltip(tile)"></span>
+        for (var x = 0; x < map.Width; x++)
+        {
+          var tile = map[x, y];
+          var sprite = GetTileSprite(tile.Biome);
+          <span class="@GetTileClass(tile, x, y)" style="@GetTileStyle(sprite)" title="@GetTileTooltip(tile)"></span>
+        }
       }
-    }
-  </section>
-</div>
+    </section>
+  </div>
+}
 
 @code {
   readonly WorldGenerator _generator = new();
   readonly Random _random = new();
-  GameWorld _world = null!;
+
+  GameWorld? _world;
+  TileAtlas _atlas = TileAtlas.Empty;
   GridPosition _cursor;
   ElementReference _viewportRef;
+  bool _shouldFocus;
 
-  WorldTile CurrentTile => _world.Map[_cursor];
-
-  protected override void OnInitialized()
+  protected override async Task OnInitializedAsync()
   {
+    _atlas = await TileAtlas.LoadAsync(Http, "data/tileset.json");
     GenerateWorld(null);
   }
 
   protected override async Task OnAfterRenderAsync(bool firstRender)
   {
-    if (firstRender)
+    if (_shouldFocus && _world is not null)
     {
+      _shouldFocus = false;
       await _viewportRef.FocusAsync();
     }
   }
 
   void HandleKey(KeyboardEventArgs args)
   {
+    if (_world is null)
+    {
+      return;
+    }
+
     switch (args.Key)
     {
       case "ArrowUp":
@@ -121,12 +142,19 @@
 
   void MoveCursor(int dx, int dy)
   {
+    if (_world is null)
+    {
+      return;
+    }
+
     var nextX = Math.Clamp(_cursor.X + dx, 0, _world.Map.Width - 1);
     var nextY = Math.Clamp(_cursor.Y + dy, 0, _world.Map.Height - 1);
+
     if (nextX == _cursor.X && nextY == _cursor.Y)
     {
       return;
     }
+
     _cursor = new GridPosition(nextX, nextY);
     StateHasChanged();
   }
@@ -142,6 +170,7 @@
 
     _world = _generator.Generate(settings);
     _cursor = new GridPosition(_world.Map.Width / 2, _world.Map.Height / 2);
+    _shouldFocus = true;
     StateHasChanged();
   }
 
@@ -154,6 +183,15 @@
     }
     return classes;
   }
+
+  string GetTileStyle(string spritePath)
+    => string.IsNullOrEmpty(spritePath) ? string.Empty : $"background-image:url('{spritePath}')";
+
+  string GetGridTemplate(int width)
+    => $"grid-template-columns: repeat({width}, var(--cell-size));";
+
+  string GetTileSprite(BiomeType biome)
+    => _atlas.GetSprite(biome);
 
   static string GetTileTooltip(WorldTile tile)
     => $"{tile.Biome} – elev {tile.Elevation:0.00}, temp {tile.Temperature:0.00}, moist {tile.Moisture:0.00}";

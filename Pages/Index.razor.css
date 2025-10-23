@@ -1,3 +1,17 @@
+.loading-panel {
+  display: grid;
+  place-items: center;
+  height: 70vh;
+  color: #d9e6ff;
+  font-family: "Segoe UI", sans-serif;
+  text-align: center;
+}
+
+.loading-panel h1 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+}
+
 .viewport {
   display: flex;
   gap: 24px;
@@ -112,6 +126,9 @@
   width: var(--cell-size);
   height: var(--cell-size);
   border-radius: 3px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .cell.selected {

@@ -1,0 +1,12 @@
+{
+  "defaultSprite": "images/tiles/plains.png",
+  "biomes": {
+    "DeepOcean": "images/tiles/deepocean.png",
+    "Ocean": "images/tiles/ocean.png",
+    "Coast": "images/tiles/coast.png",
+    "Plains": "images/tiles/plains.png",
+    "Desert": "images/tiles/desert.png",
+    "Jungle": "images/tiles/jungle.png",
+    "Snow": "images/tiles/snow.png"
+  }
+}
