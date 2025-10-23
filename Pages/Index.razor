@@ -1,96 +1,169 @@
 @page "/"
+@inject IJSRuntime JS
 
 <div style="max-width:900px;margin:24px auto;padding:16px;font:14px/1.5 ui-monospace,Consolas,monospace;">
   <h2>HistorySim Console</h2>
-  <div style="background:#080c10;border:1px solid #16202a;border-radius:6px;height:420px;overflow:auto;white-space:pre-wrap;padding:12px;" @ref="_outRef"></div>
+  <div style="background:#080c10;border:1px solid #16202a;border-radius:6px;height:420px;overflow:auto;white-space:pre-wrap;padding:12px;" @ref="_outRef">
+    @foreach (var entry in _logs)
+    {
+      <div class="@entry.Css">@entry.Text</div>
+    }
+  </div>
   <div style="display:flex;gap:8px;margin-top:8px;">
-    <input @bind="_input" @bind:event="oninput" @onkeydown="OnKey" placeholder="help と入力。 tick / auto on / war / reset" style="flex:1;padding:8px 10px;background:#0d141c;color:#cfe3ff;border:1px solid #1f2a36;border-radius:4px;" />
+    <input @bind="_input" @bind:event="oninput" @onkeydown="OnKey" placeholder="help と入力、tick / auto on / war / reset" style="flex:1;padding:8px 10px;background:#0d141c;color:#cfe3ff;border:1px solid #1f2a36;border-radius:4px;" />
     <button @onclick="Run" style="background:#18222e;color:#cfe3ff;border:1px solid #263443;border-radius:4px;padding:8px 10px;cursor:pointer;">Enter</button>
   </div>
 </div>
 
 @code {
+  readonly List<LogEntry> _logs = new();
   ElementReference _outRef;
-  string _input = "";
+  string _input = string.Empty;
   Simulation _sim = new();
   System.Timers.Timer? _timer;
+  bool _scrollPending;
 
-  protected override void OnAfterRender(bool firstRender) {
-    if (firstRender) {
-      Log("HistorySim Console 0.1  —  help でコマンド一覧", "dim");
-      Log(_sim.Metrics(), "dim");
+  protected override void OnInitialized()
+  {
+    _sim.Reset();
+    Log("HistorySim Console 0.1 - help でコマンド一覧", "dim");
+    Log(_sim.Metrics(), "dim");
+  }
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (_scrollPending)
+    {
+      _scrollPending = false;
+      await JS.InvokeVoidAsync("historySim.scrollToBottom", _outRef);
     }
   }
 
-  void Append(string html) {
-    // 超簡易：ログを innerHTML 連結（Blazor JS interopなしでも可）
-    // 実運用では JSRuntimeでスクロール制御してもOK。
-    var js = $@"
-      const box = document.querySelector('div[style*=""overflow:auto""]');
-      box.insertAdjacentHTML('beforeend', `{html.Replace("`","\\`")}`);
-      box.scrollTop = box.scrollHeight;";
-    _ = Microsoft.JSInterop.JSHost.ImportAsync("x", "./_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js"); // ダミーimportでJS可動確保
-    // ↑上の行は“importを少なくとも一度呼ぶ”ための小手先。不要なら削除可。
+  void Log(string msg, string css = "")
+  {
+    _logs.Add(new LogEntry(css, msg));
+    if (_logs.Count > 400)
+    {
+      _logs.RemoveRange(0, _logs.Count - 400);
+    }
+    _scrollPending = true;
   }
 
-  void Log(string msg, string cls="")
-    => Append($"<div class=\"{cls}\">{System.Net.WebUtility.HtmlEncode(msg)}</div>");
-
-  void Run() {
-    Handle(_input.Trim());
-    _input = "";
+  void Run()
+  {
+    var cmd = _input.Trim();
+    _input = string.Empty;
+    Handle(cmd);
   }
-  void OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") Run(); }
 
-  void Handle(string cmd) {
-    if (string.IsNullOrWhiteSpace(cmd)) return;
+  void OnKey(KeyboardEventArgs e)
+  {
+    if (e.Key == "Enter")
+    {
+      Run();
+    }
+  }
+
+  void Handle(string cmd)
+  {
+    if (string.IsNullOrWhiteSpace(cmd))
+    {
+      StateHasChanged();
+      return;
+    }
+
     Log($"> {cmd}");
 
-    switch (cmd.ToLowerInvariant()) {
+    switch (cmd.ToLowerInvariant())
+    {
       case "help":
-        Log(string.Join("\n", new[]{
-          "help            - この一覧",
+        Log(string.Join("\n", new[]
+        {
+          "help            - コマンド一覧",
           "tick            - 1ステップ進める",
           "auto on/off     - 自動で進める",
-          "war             - 人為的衝突（テスト）",
+          "war             - 人為的衝突テスト",
           "reset           - 初期化"
         }), "dim");
         break;
       case "tick":
-        StepOnce(); break;
+        StepOnce();
+        break;
       case "auto on":
-        if (_timer==null) {
+        if (_timer == null)
+        {
           _timer = new System.Timers.Timer(300);
-          _timer.Elapsed += (_,__) => InvokeAsync(StepOnce);
+          _timer.Elapsed += (_, _) => InvokeAsync(StepOnce);
+          _timer.AutoReset = true;
           _timer.Start();
+          Log("自動実行を開始しました。", "dim");
+        }
+        else
+        {
+          Log("自動実行は既に動作中です。", "dim");
         }
         break;
       case "auto off":
-        _timer?.Stop(); _timer = null; break;
+        if (_timer != null)
+        {
+          _timer.Stop();
+          _timer.Dispose();
+          _timer = null;
+          Log("自動実行を停止しました。", "dim");
+        }
+        else
+        {
+          Log("自動実行は停止済みです。", "dim");
+        }
+        break;
       case "reset":
-        _timer?.Stop(); _timer = null; _sim = new(); _sim.Reset();
+        _timer?.Stop();
+        _timer?.Dispose();
+        _timer = null;
+        _sim.Reset();
+        _logs.Clear();
         Log("== reset ==", "dim");
         Log(_sim.Metrics(), "dim");
         break;
       case "war":
-        _sim.ApplyEvent("人為的衝突", new Delta{ 資源=-0.08, 冗長性=-0.05, 相関=+0.06, 確信=+0.04 }, "ボタンは押されるためにある");
-        Log("★ 人為的衝突 — ボタンは押されるためにある");
+        _sim.ApplyEvent("人為的衝突", new Delta
+        {
+          Stability = -0.08,
+          Redundancy = -0.05,
+          Correlation = +0.06,
+          Confidence = +0.04
+        }, "ボタンは押されるためにある");
+        Log("[event] 人為的衝突 - ボタンは押されるためにある");
         Log(_sim.Metrics(), "dim");
         break;
       default:
-        Log("未知のコマンドです。help を参照。", "err");
+        Log("未知のコマンドです。help を参照してください。", "err");
         break;
     }
-  }
 
-  void StepOnce() {
-    var end = _sim.Tick(out var note);
-    if (!string.IsNullOrEmpty(note)) Log($"★ {note}");
-    Log(_sim.Metrics(), "dim");
-    if (end) {
-      Log("== 終焉 ==", "warn");
-      _timer?.Stop(); _timer = null;
-    }
     StateHasChanged();
   }
+
+  void StepOnce()
+  {
+    var end = _sim.Tick(out var note);
+    if (!string.IsNullOrWhiteSpace(note))
+    {
+      Log($"[event] {note}");
+    }
+
+    Log(_sim.Metrics(), "dim");
+
+    if (end)
+    {
+      Log("== 終焉 ==", "warn");
+      _timer?.Stop();
+      _timer?.Dispose();
+      _timer = null;
+    }
+
+    StateHasChanged();
+  }
+
+  readonly record struct LogEntry(string Css, string Text);
 }
