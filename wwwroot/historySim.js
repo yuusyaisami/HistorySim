@@ -14,7 +14,6 @@
     }
     ns._bootStarted = true;
 
-    // Start manually so we can ignore stale integrity hashes on GitHub Pages.
     Blazor.start({
       loadBootResource: function (type, name, defaultUri, integrity) {
         if (!ns._logOnce) {
@@ -24,6 +23,10 @@
         if (type === 'wasmNative' && name === 'dotnet.native.wasm') {
           console.log('[HistorySim] forcing cache bust for dotnet.native.wasm', integrity);
           return fetch(defaultUri + '?v=' + Date.now(), { cache: 'no-store' });
+        }
+        if (type === 'dotnetjs') {
+          console.log('[HistorySim] using original dotnetjs script', defaultUri);
+          return defaultUri;
         }
         return fetch(defaultUri, { cache: 'no-store' });
       }
