@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "HistorySim",
   "resources": {
-    "hash": "sha256-j8AKNOc6V9gGPQgLr1c0f/M7TMFupETRxoWMrDGDCv0=",
+    "hash": "sha256-vz/fIO44AacNmYv+i+3iJtwM1EgHV/35YwdoWv7GOWI=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-O/NCYcAN9uPocD7ns7AzF/cqx7f5vL1PTJCQs0vEXyk="
     },
@@ -53,7 +53,7 @@
       "System.Text.RegularExpressions.wasm": "sha256-amyl1Zsuf+PHSXqju/cl50LQlTKfUNpDi6hcFh10yrM=",
       "System.wasm": "sha256-/Ib2sECJIp5OmAw2FVP/3jA36Bh6yA6fac798DlmOd8=",
       "System.Private.CoreLib.wasm": "sha256-EC4t2LTX8U5ZEVVgwGG+9nU/NHv+ejQE0rQO1BAkNoo=",
-      "HistorySim.wasm": "sha256-qFWZu0zOXu6bvFob6QasAYR0oJOOLzQ+dnzOc4q0gTM="
+      "HistorySim.wasm": "sha256-OjDYbemS/hHk6FSzPuR1p2tLFIAXVfFELvaofSECb4Q="
     }
   },
   "cacheBootResources": true,

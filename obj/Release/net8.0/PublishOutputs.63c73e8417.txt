@@ -1,6 +1,10 @@
 C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\web.config
 C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\emcc-props.json
 C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\HistorySim.staticwebassets.endpoints.json
+C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\publish\emcc-props.json
+C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\publish\HistorySim.staticwebassets.endpoints.json
+C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\publish\wwwroot\sample-data\weather.json
+C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\publish\wwwroot\_framework\blazor.boot.json
 C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\wwwroot\sample-data\weather.json
 C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\publish\wwwroot\_framework\blazor.boot.json
 C:\Users\macar\OneDrive\Documents\Programl\GitHubPages\HistorySim\publish\emcc-props.json

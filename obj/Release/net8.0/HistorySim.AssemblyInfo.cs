@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("HistorySim")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+92ea8b088f90c307c47776d30b789bf27a617a1b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+76e5895c80a92b82d1441cc38b08ab6a5f257b58")]
 [assembly: System.Reflection.AssemblyProductAttribute("HistorySim")]
 [assembly: System.Reflection.AssemblyTitleAttribute("HistorySim")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

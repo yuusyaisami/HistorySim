@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "HistorySim",
   "resources": {
-    "hash": "sha256-/2fLlB/V1y0mlmYJF3gGoz1hFfTIi621uDkG8OmQyHw=",
+    "hash": "sha256-Kfei6j8GFSmAfrV2gHOEqOoGBLQf0SeTN2LXJ7CmcDA=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-O/NCYcAN9uPocD7ns7AzF/cqx7f5vL1PTJCQs0vEXyk="
     },
@@ -209,10 +209,10 @@
       "mscorlib.wasm": "sha256-RLW/7NVuhoPfq151II3kX2kWHgBwQgpCw9aemQNg3to=",
       "netstandard.wasm": "sha256-lAg5WvTiA8wbsIwlr51xh0YWpXT9F5EX3Cnv+11O/mU=",
       "System.Private.CoreLib.wasm": "sha256-3O3muuRQwoLRecYRjfIFWUURvTjP4EmD2O8wYg2UDNY=",
-      "HistorySim.wasm": "sha256-u/bP6fndWXurMES21Fpj9rw20hW6Db/lNUq/bQT2ZA8="
+      "HistorySim.wasm": "sha256-qFWZu0zOXu6bvFob6QasAYR0oJOOLzQ+dnzOc4q0gTM="
     },
     "pdb": {
-      "HistorySim.pdb": "sha256-mSDUNMY53u+nSGYtx7FWhjVMV60E8HmDccDk96czKNg="
+      "HistorySim.pdb": "sha256-c/vVzT8CpEH3myY6KydhDqI1dpxxTRwxZ8/I9payqqs="
     }
   },
   "cacheBootResources": true,
