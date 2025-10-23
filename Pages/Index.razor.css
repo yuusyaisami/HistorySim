@@ -1,89 +1,434 @@
-.console-root {
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 10% 20%, rgba(64, 96, 160, 0.2), transparent 55%), #060a11;
+  color: #e5f0ff;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+.game-root {
+  min-height: 100vh;
+  padding: 24px 32px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  padding: 24px;
-  box-sizing: border-box;
-  background: radial-gradient(circle at 20% 20%, rgba(66, 94, 140, 0.22), transparent 60%), #05090f;
-  color: #dce8ff;
-  font-family: "Cascadia Code", Consolas, monospace;
+  gap: 16px;
 }
 
-.console-header h1 {
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.top-bar h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.6rem;
 }
 
-.console-header p {
-  margin: 4px 0 16px;
-  color: #7fa4cc;
+.subtitle {
+  margin: 4px 0 0;
+  color: #8aa8d4;
   font-size: 0.95rem;
 }
 
-.console-output {
-  flex: 1;
-  overflow-y: auto;
-  background: rgba(10, 16, 24, 0.9);
-  border: 1px solid #1f2b3a;
-  border-radius: 12px;
+.status-pill {
+  background: rgba(24, 36, 56, 0.85);
+  border: 1px solid rgba(66, 120, 200, 0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.status-pill strong {
+  color: #fff;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+
+.banner.msg-info {
+  background: rgba(42, 74, 126, 0.5);
+  border-color: rgba(80, 120, 190, 0.5);
+}
+
+.banner.msg-success {
+  background: rgba(40, 110, 70, 0.55);
+  border-color: rgba(80, 190, 140, 0.6);
+}
+
+.banner.msg-warning {
+  background: rgba(120, 90, 30, 0.55);
+  border-color: rgba(210, 150, 60, 0.6);
+}
+
+.banner.msg-danger {
+  background: rgba(140, 45, 45, 0.6);
+  border-color: rgba(210, 80, 80, 0.7);
+}
+
+.banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.game-body {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: start;
+}
+
+.sidebar,
+.scene-card,
+.log-panel {
+  background: rgba(15, 22, 33, 0.88);
+  border: 1px solid rgba(44, 66, 104, 0.6);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.35);
+}
+
+.scene {
+  min-height: 460px;
+}
+
+.scene-card {
+  display: grid;
+  gap: 18px;
+}
+
+.scene-card h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.intro-card p,
+.gameover-card p {
+  margin: 0;
+  color: #99b5e0;
+}
+
+.primary,
+.secondary,
+.option-button,
+.link-button {
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 10px;
+  border: none;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.primary {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #4aa3ff, #507bff);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 12px 24px rgba(74, 163, 255, 0.35);
+}
+
+.secondary {
+  padding: 12px 18px;
+  background: rgba(28, 42, 62, 0.9);
+  color: #dcecff;
+  border: 1px solid rgba(76, 104, 150, 0.5);
+}
+
+.primary:hover,
+.secondary:hover,
+.option-button:hover {
+  transform: translateY(-1px);
+}
+
+.option-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.option-button {
+  text-align: left;
   padding: 16px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  background: rgba(24, 35, 52, 0.9);
+  border: 1px solid rgba(70, 110, 172, 0.45);
+  color: inherit;
   display: grid;
   gap: 6px;
 }
 
-.log-line {
-  white-space: pre-wrap;
+.option-type {
+  font-size: 0.85rem;
+  color: #81a7e4;
+  text-transform: uppercase;
 }
 
-.log-line.dim {
-  color: #7d97b8;
+.combat-card {
+  gap: 24px;
 }
 
-.log-line.warn {
-  color: #f4c076;
-}
-
-.log-line.err {
-  color: #ff7b7b;
-}
-
-.console-input {
+.enemy-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-  background: rgba(14, 20, 32, 0.95);
-  border: 1px solid #273447;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(66, 88, 126, 0.5);
+  padding-bottom: 12px;
+}
+
+.enemy-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.enemy-header p {
+  margin: 4px 0 0;
+  color: #9fbbed;
+}
+
+.action-bar {
+  display: grid;
+  gap: 16px;
+}
+
+.action-track header {
+  display: flex;
+  justify-content: space-between;
+  color: #9fbbed;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.track-bar {
+  position: relative;
+  height: 44px;
+  padding: 6px;
+  background: rgba(16, 24, 36, 0.85);
   border-radius: 10px;
-  padding: 10px 12px;
+  border: 1px solid rgba(60, 82, 116, 0.6);
 }
 
-.console-input span {
-  color: #4aa3ff;
-}
-
-.console-input input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: inherit;
-  font-family: inherit;
-  font-size: 0.95rem;
-}
-
-.console-input button {
-  background: linear-gradient(135deg, #4aa3ff, #3f7eff);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+.segment {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border-radius: 8px;
-  padding: 6px 12px;
-  color: #f4f9ff;
-  font-family: inherit;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(74, 163, 255, 0.25);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  color: #0d141e;
+  font-weight: 600;
+  padding: 0 8px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.console-input button:hover {
-  transform: translateY(-1px);
+.segment.attack {
+  background: #f26c6c;
+}
+
+.segment.skill {
+  background: #58c6ff;
+}
+
+.segment.rest {
+  background: #9bd46a;
+}
+
+.segment .stack {
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.marker {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  background: #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
+}
+
+.combat-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.combat-controls label {
+  display: grid;
+  gap: 6px;
+  color: #93b0dd;
+  font-size: 0.9rem;
+}
+
+.combat-controls input[type="range"] {
+  accent-color: #4aa3ff;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.sidebar section + section {
+  margin-top: 20px;
+}
+
+.sidebar h2,
+.log-panel h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  color: #aecdff;
+}
+
+.party-list,
+.relic-list,
+.turn-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.member {
+  background: rgba(20, 28, 42, 0.85);
+  border: 1px solid rgba(72, 108, 162, 0.4);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.member header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.member.hurt {
+  border-color: rgba(210, 160, 60, 0.6);
+}
+
+.member.down {
+  border-color: rgba(220, 80, 80, 0.6);
+  opacity: 0.6;
+}
+
+.hp-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(50, 70, 104, 0.6);
+  overflow: hidden;
+}
+
+.hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4fd67c, #2fbf64);
+}
+
+.relic-list li {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  background: rgba(22, 30, 46, 0.85);
+  border-radius: 10px;
+  border: 1px solid rgba(72, 108, 162, 0.35);
+}
+
+.relic-list strong {
+  color: #f6fbff;
+}
+
+.relic-list span {
+  color: #8aa8d4;
+  font-size: 0.88rem;
+}
+
+.turn-log li {
+  font-size: 0.9rem;
+}
+
+.muted {
+  color: #6f86a9;
+  margin: 0;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #7fb4ff;
+  padding: 0;
+  text-decoration: underline;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.log-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+}
+
+.log-scroll {
+  overflow-y: auto;
+  max-height: 520px;
+  display: grid;
+  gap: 8px;
+}
+
+.log-entry {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(18, 26, 38, 0.9);
+  border: 1px solid rgba(52, 74, 108, 0.35);
+  font-size: 0.9rem;
+}
+
+.msg-info {
+  color: #dbe7ff;
+}
+
+.msg-warning {
+  color: #f6c880;
+}
+
+.msg-danger {
+  color: #ff8a8a;
+}
+
+.msg-success {
+  color: #96fac4;
+}
+
+@media (max-width: 1200px) {
+  .game-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar,
+  .log-panel {
+    order: 1;
+  }
+
+  .scene {
+    order: 0;
+  }
 }

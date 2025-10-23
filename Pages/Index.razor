@@ -1,232 +1,296 @@
 @page "/"
 @using HistorySim.Game
-@inject IJSRuntime JS
+@using MessageKindEnum = HistorySim.Game.RogueliteGame.MessageKind
+@using ActionTypeEnum = HistorySim.Game.RogueliteGame.ActionType
 
-<div class="console-root">
-  <header class="console-header">
-    <h1>HistorySim Console</h1>
-    <p>Roguelite prototype — type <code>help</code> for commands</p>
+<div class="game-root">
+  <header class="top-bar">
+    <div>
+      <h1>HistorySim Roguelite Prototype</h1>
+      <p class="subtitle">Guide three allies through a turn based adventure. Time the action bar to strike.</p>
+    </div>
+    <div class="status-pill">
+      <span>Phase</span>
+      <strong>@DisplayPhase</strong>
+    </div>
+    <div class="status-pill">
+      <span>Level</span>
+      <strong>@_game.Level</strong>
+    </div>
   </header>
 
-  <section class="console-output" @ref="_logRef">
-    @foreach (var entry in _log)
-    {
-      <div class="log-line @entry.Kind">@entry.Message</div>
-    }
-  </section>
+  @if (!string.IsNullOrEmpty(_banner))
+  {
+    <div class="banner @GetMessageClass(_bannerKind)">
+      @_banner
+      <button type="button" class="banner-close" @onclick="() => _banner = null" aria-label="dismiss banner">×</button>
+    </div>
+  }
 
-  <section class="console-input">
-    <span>&gt;</span>
-    <input @bind="_input" @bind:event="oninput" @onkeydown="HandleInputKey" @ref="_inputRef" placeholder="enter command..." />
-    <button type="button" @onclick="Submit">Enter</button>
-  </section>
+  <div class="game-body">
+    <aside class="sidebar">
+      <section>
+        <h2>Party</h2>
+        <ul class="party-list">
+          @foreach (var member in _game.Party)
+          {
+            <li class="@GetMemberClass(member)">
+              <header>
+                <strong>@member.Name</strong>
+                <span>@member.CurrentHp / @member.MaxHp</span>
+              </header>
+              <div class="hp-bar">
+                <div class="hp-fill" style="width:@(member.CurrentHp * 100 / (double)member.MaxHp)%"></div>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section>
+        <h2>Relics</h2>
+        @if (_game.Relics.Count == 0)
+        {
+          <p class="muted">None collected.</p>
+        }
+        else
+        {
+          <ul class="relic-list">
+            @foreach (var relic in _game.Relics)
+            {
+              <li>
+                <strong>@relic.Name</strong>
+                <span>@relic.Description</span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      @if (_game.LastTurnLog.Count > 0)
+      {
+        <section>
+          <h2>Last turn</h2>
+          <ul class="turn-log">
+            @foreach (var message in _game.LastTurnLog)
+            {
+              <li class="@GetMessageClass(message.Kind)">@message.Text</li>
+            }
+          </ul>
+          <button class="link-button" @onclick="ClearTurnLog">Clear</button>
+        </section>
+      }
+    </aside>
+
+    <main class="scene">
+      @switch (_game.Phase)
+      {
+        case RogueliteGame.GamePhase.AwaitingCommand:
+          <section class="scene-card intro-card">
+            <h2>Start Expedition</h2>
+            <p>Each run presents new routes, relics, and elite encounters.</p>
+            <button class="primary" @onclick="StartGame">Begin</button>
+          </section>
+          break;
+
+        case RogueliteGame.GamePhase.SelectingEncounter:
+          <section class="scene-card option-card">
+            <h2>Select Next Route</h2>
+            <p>Choose where the party travels next.</p>
+            <div class="option-grid">
+              @foreach (var (option, index) in _game.Options.Select((value, idx) => (value, idx)))
+              {
+                <button class="option-button" @onclick="() => ChooseOption(index)">
+                  <span class="option-type">@option.Type</span>
+                  <strong>@option.Label</strong>
+                </button>
+              }
+            </div>
+          </section>
+          break;
+
+        case RogueliteGame.GamePhase.Combat:
+          <section class="scene-card combat-card">
+            <header class="enemy-header">
+              @if (_game.CurrentEncounter is RogueliteGame.EncounterBase.EnemyEncounter encounter)
+              {
+                <div>
+                  <h2>@encounter.Enemy.Name</h2>
+                  <p>HP @encounter.Enemy.CurrentHp / @encounter.Enemy.MaxHp</p>
+                </div>
+              }
+            </header>
+
+            @if (_game.CurrentActionBar is { } bar)
+            {
+              <div class="action-bar">
+                @foreach (var track in bar.Tracks)
+                {
+                  <div class="action-track">
+                    <header>
+                      <span>@track.Member.Name</span>
+                      <span>@track.Member.CurrentHp / @track.Member.MaxHp</span>
+                    </header>
+                    <div class="track-bar">
+                      @foreach (var segment in track.Segments)
+                      {
+                        <div class="@GetSegmentClass(segment.Type)" style="@GetSegmentStyle(segment)">
+                          <span>@segment.Type</span>
+                          @if (segment.Stack > 1)
+                          {
+                            <span class="stack">x@segment.Stack</span>
+                          }
+                        </div>
+                      }
+                      <div class="marker" style="@GetMarkerStyle()"></div>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
+            <div class="combat-controls">
+              <label>
+                <span>Lock position (@_lockSlider.ToString("F0")%)</span>
+                <input type="range" min="0" max="100" step="1" @bind="_lockSlider" />
+              </label>
+              <div class="control-buttons">
+                <button class="primary" @onclick="() => LockTurn(false)">Lock at slider</button>
+                <button class="secondary" @onclick="() => LockTurn(true)">Lock randomly</button>
+              </div>
+            </div>
+          </section>
+          break;
+
+        case RogueliteGame.GamePhase.GameOver:
+          <section class="scene-card gameover-card">
+            <h2>Expedition Failed</h2>
+            <p>The team fell in battle. Gather your strength and try again.</p>
+            <button class="primary" @onclick="StartGame">Run it back</button>
+          </section>
+          break;
+      }
+    </main>
+
+    <aside class="log-panel">
+      <h2>Adventure Log</h2>
+      <div class="log-scroll">
+        @foreach (var message in _game.Messages)
+        {
+          <div class="log-entry @GetMessageClass(message.Kind)">@message.Text</div>
+        }
+      </div>
+    </aside>
+  </div>
 </div>
 
 @code {
   readonly RogueliteGame _game = new();
-  readonly List<LogEntry> _log = new();
+  double _lockSlider = 50;
+  string? _banner;
+  MessageKindEnum _bannerKind = MessageKindEnum.Info;
 
-  string _input = string.Empty;
-  ElementReference _logRef;
-  ElementReference _inputRef;
-  bool _focusRequested = true;
-  bool _scrollPending;
-
-  protected override void OnInitialized()
+  string DisplayPhase => _game.Phase switch
   {
-    Write("Welcome to the HistorySim roguelite console.");
-    Write("Type `help` to see available commands.");
+    RogueliteGame.GamePhase.AwaitingCommand => "Title",
+    RogueliteGame.GamePhase.SelectingEncounter => "Route Select",
+    RogueliteGame.GamePhase.Combat => "Combat",
+    RogueliteGame.GamePhase.GameOver => "Game Over",
+    _ => _game.Phase.ToString()
+  };
+
+  void StartGame()
+  {
+    _game.StartNewRun();
+    _lockSlider = 50;
+    _banner = null;
   }
 
-  protected override async Task OnAfterRenderAsync(bool firstRender)
+  void ChooseOption(int index)
   {
-    if (_focusRequested)
+    if (_game.TryChooseOption(index, out var message))
     {
-      _focusRequested = false;
-      await _inputRef.FocusAsync();
+      ShowBanner(message, MessageKindEnum.Success);
     }
-
-    if (_scrollPending)
+    else
     {
-      _scrollPending = false;
-      await JS.InvokeVoidAsync("historySim.scrollToBottom", _logRef);
-    }
-  }
-
-  void HandleInputKey(KeyboardEventArgs args)
-  {
-    if (args.Key == "Enter")
-    {
-      Submit();
+      ShowBanner(message, MessageKindEnum.Warning);
     }
   }
 
-  void Submit()
+  void LockTurn(bool random)
   {
-    var command = _input.Trim();
-    if (string.IsNullOrWhiteSpace(command))
+    double? position = random ? null : _lockSlider / 100.0;
+    if (_game.TryResolveTurn(position, out var turnLog, out var combatComplete))
     {
-      return;
-    }
-
-    Write($"> {command}", "dim");
-    _input = string.Empty;
-    _focusRequested = true;
-
-    try
-    {
-      Execute(command);
-    }
-    catch (Exception ex)
-    {
-      Write($"Error: {ex.Message}", "err");
-    }
-  }
-
-  void Execute(string command)
-  {
-    var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-    var verb = parts[0].ToLowerInvariant();
-    var args = parts.Skip(1).ToArray();
-
-    switch (verb)
-    {
-      case "help":
-        WriteLines(new[]
-        {
-          "start               - begin a new expedition",
-          "options             - show current path choices",
-          "choose <1-3>        - pick a path option",
-          "status              - view party status",
-          "bar                 - display the current action bar",
-          "lock [0-100]        - stop the action bar (optional percent)",
-          "log                 - echo recent system messages",
-          "reset               - reset game state"
-        }, "dim");
-        break;
-
-      case "start":
-        _game.StartNewRun();
-        DumpMessages();
-        break;
-
-      case "options":
-        if (!_game.Options.Any())
-        {
-          Write("No route options are currently available.", "warn");
-        }
-        else
-        {
-          foreach (var line in _game.DescribeOptions())
-          {
-            Write(line);
-          }
-        }
-        break;
-
-      case "choose":
-        if (args.Length == 0 || !int.TryParse(args[0], out var choice))
-        {
-          Write("Choose expects a number between 1 and 3.", "warn");
-          break;
-        }
-        if (_game.TryChooseOption(choice - 1, out var message))
-        {
-          Write(message);
-          DumpMessages();
-        }
-        else
-        {
-          Write(message, "warn");
-        }
-        break;
-
-      case "status":
-        Write(_game.GetStatus(), "dim");
-        break;
-
-      case "bar":
-        foreach (var line in _game.DescribeActionBar())
-        {
-          Write(line);
-        }
-        break;
-
-      case "lock":
-        ResolveTurn(args);
-        break;
-
-      case "log":
-        DumpMessages();
-        break;
-
-      case "reset":
-        _game.Reset();
-        Write("Game state reset.", "warn");
-        break;
-
-      default:
-        Write("Unknown command. Type `help` for assistance.", "warn");
-        break;
-    }
-  }
-
-  void ResolveTurn(string[] args)
-  {
-    double? position = null;
-    if (args.Length > 0 && double.TryParse(args[0], out var percent))
-    {
-      position = Math.Clamp(percent / 100.0, 0, 1);
-    }
-
-    var turnLog = new List<string>();
-    if (_game.TryResolveTurn(position, turnLog, out var combatComplete))
-    {
-      foreach (var line in turnLog)
+      if (!double.IsNaN(_game.LastLockPosition))
       {
-        Write(line);
+        _lockSlider = _game.LastLockPosition * 100;
       }
 
       if (combatComplete)
       {
-        DumpMessages();
+        ShowBanner("Enemy defeated!", MessageKindEnum.Success);
+      }
+      else
+      {
+        _banner = null;
       }
     }
     else
     {
-      foreach (var line in turnLog)
-      {
-        Write(line, "warn");
-      }
+      var feedback = turnLog.FirstOrDefault().Text ?? "Unable to resolve turn.";
+      ShowBanner(feedback, MessageKindEnum.Warning);
     }
   }
 
-  void DumpMessages()
+  void ClearTurnLog()
   {
-    foreach (var entry in _game.Messages)
-    {
-      Write(entry);
-    }
+    _game.ClearLastTurnLog();
   }
 
-  void Write(string message, string kind = "")
+  void ShowBanner(string message, MessageKindEnum kind)
   {
-    _log.Add(new LogEntry(kind, message));
-    if (_log.Count > 600)
-    {
-      _log.RemoveRange(0, _log.Count - 600);
-    }
-    _scrollPending = true;
-    StateHasChanged();
+    _banner = message;
+    _bannerKind = kind;
   }
 
-  void WriteLines(IEnumerable<string> lines, string kind = "")
+  string GetMemberClass(RogueliteGame.PartyMember member)
+    => member.IsDown ? "member down" : member.CurrentHp < member.MaxHp / 2 ? "member hurt" : "member";
+
+  string GetMessageClass(MessageKindEnum kind)
+    => kind switch
+    {
+      MessageKindEnum.Success => "msg-success",
+      MessageKindEnum.Warning => "msg-warning",
+      MessageKindEnum.Danger => "msg-danger",
+      _ => "msg-info"
+    };
+
+  string GetSegmentClass(ActionTypeEnum type)
+    => type switch
+    {
+      ActionTypeEnum.Attack => "segment attack",
+      ActionTypeEnum.Skill => "segment skill",
+      ActionTypeEnum.Rest => "segment rest",
+      _ => "segment"
+    };
+
+  string GetSegmentStyle(RogueliteGame.ActionSegment segment)
   {
-    foreach (var line in lines)
-    {
-      Write(line, kind);
-    }
+    var left = segment.Start * 100;
+    var width = Math.Max(1.5, (segment.End - segment.Start) * 100);
+    return $"left:{left:F2}%;width:{width:F2}%;";
   }
 
-  record LogEntry(string Kind, string Message);
+  string GetMarkerStyle()
+  {
+    if (double.IsNaN(_game.LastLockPosition))
+    {
+      return "display:none;";
+    }
+
+    var left = _game.LastLockPosition * 100;
+    return $"left:{left:F2}%;";
+  }
 }

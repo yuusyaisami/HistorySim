@@ -6,7 +6,7 @@ namespace HistorySim.Game;
 
 public sealed class RogueliteGame
 {
-    readonly List<string> _messages = new();
+    readonly List<GameMessage> _messages = new();
     readonly List<PartyMember> _party = new();
     readonly List<Relic> _relics = new();
     readonly List<EncounterOption> _options = new();
@@ -21,7 +21,7 @@ public sealed class RogueliteGame
         Reset();
     }
 
-    public IReadOnlyList<string> Messages => _messages;
+    public IReadOnlyList<GameMessage> Messages => _messages;
     public IReadOnlyList<PartyMember> Party => _party;
     public IReadOnlyList<Relic> Relics => _relics;
     public IReadOnlyList<EncounterOption> Options => _options;
@@ -29,6 +29,8 @@ public sealed class RogueliteGame
     public int Level { get; private set; }
     public ActionBar? CurrentActionBar => _actionBar;
     public EncounterBase? CurrentEncounter => _currentEncounter;
+    public IReadOnlyList<GameMessage> LastTurnLog { get; private set; } = Array.Empty<GameMessage>();
+    public double LastLockPosition { get; private set; } = double.NaN;
 
     public void Reset()
     {
@@ -45,6 +47,8 @@ public sealed class RogueliteGame
         Phase = GamePhase.AwaitingCommand;
         _currentEncounter = null;
         _actionBar = null;
+        LastTurnLog = Array.Empty<GameMessage>();
+        LastLockPosition = double.NaN;
     }
 
     public void StartNewRun()
@@ -52,7 +56,7 @@ public sealed class RogueliteGame
         Reset();
         Phase = GamePhase.SelectingEncounter;
         GenerateOptions();
-        AddMessage("新しい遠征を開始しました。行き先を選択してください。");
+        AddMessage("新しい遠征が始まった。行き先を選ぼう。", MessageKind.Success);
     }
 
     public bool TryChooseOption(int index, out string message)
@@ -60,7 +64,7 @@ public sealed class RogueliteGame
         message = string.Empty;
         if (Phase != GamePhase.SelectingEncounter)
         {
-            message = "現在は進行中の遭遇を完了してください。";
+            message = "現在は進行中の遭遇を終えてください。";
             return false;
         }
 
@@ -79,7 +83,7 @@ public sealed class RogueliteGame
             {
                 var enemy = CreateEnemy(Level);
                 _currentEncounter = EncounterBase.ForEnemy(enemy, EncounterType.Normal);
-                AddMessage($"敵遭遇『{enemy.Name}』に突入！");
+                AddMessage($"敵遭遇『{enemy.Name}』に突入！", MessageKind.Warning);
                 BeginCombat();
                 break;
             }
@@ -87,7 +91,7 @@ public sealed class RogueliteGame
             {
                 var enemy = CreateElite(Level);
                 _currentEncounter = EncounterBase.ForEnemy(enemy, EncounterType.Elite);
-                AddMessage($"エリート遭遇『{enemy.Name}』に挑戦します！");
+                AddMessage($"エリート遭遇『{enemy.Name}』が立ちはだかる！", MessageKind.Warning);
                 BeginCombat();
                 break;
             }
@@ -101,49 +105,55 @@ public sealed class RogueliteGame
                 throw new ArgumentOutOfRangeException();
         }
 
-        message = $"「{option.Label}」を選択。";
+        message = $"「{option.Label}」へ進む。";
         return true;
     }
 
-    public bool TryResolveTurn(double? manualPosition, IList<string> output, out bool combatComplete)
+    public bool TryResolveTurn(double? manualPosition, out IReadOnlyList<GameMessage> turnLog, out bool combatComplete)
     {
         combatComplete = false;
+        var log = new List<GameMessage>();
+        turnLog = log;
+
         if (Phase != GamePhase.Combat)
         {
-            output.Add("現在は戦闘中ではありません。");
+            log.Add(GameMessage.Warn("現在は戦闘中ではありません。"));
+            LastTurnLog = log;
             return false;
         }
 
         if (_actionBar is null || _currentEncounter is not EncounterBase.EnemyEncounter encounter)
         {
-            output.Add("行動バーが準備されていません。");
+            log.Add(GameMessage.Warn("行動バーが準備されていません。"));
+            LastTurnLog = log;
             return false;
         }
 
-        var marker = manualPosition ?? _rng.NextDouble();
-        output.Add($"バー停止位置: {(int)(marker * 100)}%");
+        var position = manualPosition ?? _rng.NextDouble();
+        LastLockPosition = position;
+        log.Add(GameMessage.Info($"バー停止位置: {(int)(position * 100)}%"));
 
-        var evaluation = _actionBar.Evaluate(marker);
+        var evaluation = _actionBar.Evaluate(position);
         foreach (var execution in evaluation.Executions)
         {
             foreach (var action in execution.Actions)
             {
-                ResolveHeroAction(execution.Member, action, encounter.Enemy, output);
+                log.Add(ResolveHeroAction(execution.Member, action, encounter.Enemy));
                 if (encounter.Enemy.CurrentHp <= 0)
                 {
-                    output.Add($"敵『{encounter.Enemy.Name}』を撃破！");
+                    log.Add(GameMessage.Success($"敵『{encounter.Enemy.Name}』を撃破！"));
                     GrantVictoryRewards(encounter);
                     combatComplete = true;
-                    return true;
+                    goto AfterTurn;
                 }
             }
         }
 
-        ResolveEnemyTurn(encounter.Enemy, output);
+        log.Add(ResolveEnemyTurn(encounter.Enemy));
 
         if (_party.All(p => p.IsDown))
         {
-            output.Add("仲間は全滅しました。遠征は失敗です。");
+            log.Add(GameMessage.Danger("仲間は全滅した。遠征は失敗に終わった。"));
             Phase = GamePhase.GameOver;
         }
         else
@@ -151,6 +161,13 @@ public sealed class RogueliteGame
             PrepareNextTurn();
         }
 
+    AfterTurn:
+        foreach (var entry in log)
+        {
+            AddMessage(entry);
+        }
+
+        LastTurnLog = log;
         return true;
     }
 
@@ -160,7 +177,12 @@ public sealed class RogueliteGame
         var relics = _relics.Count > 0 ? string.Join(", ", _relics.Select(r => r.Name)) : "なし";
         var encounter = _currentEncounter is EncounterBase.EnemyEncounter enemy
             ? $"{enemy.Enemy.Name} {enemy.Enemy.CurrentHp}/{enemy.Enemy.MaxHp}"
-            : Phase == GamePhase.SelectingEncounter ? "未選択" : "イベント処理中";
+            : Phase switch
+            {
+                GamePhase.SelectingEncounter => "進路選択中",
+                GamePhase.GameOver => "遠征終了",
+                _ => "準備中"
+            };
 
         return $"Level {Level} | 仲間: {party} | 遭遇: {encounter} | 遺物: {relics}";
     }
@@ -168,76 +190,73 @@ public sealed class RogueliteGame
     public IEnumerable<string> DescribeOptions()
         => _options.Select((option, index) => $"{index + 1}. [{option.Type}] {option.Label}");
 
-    public IEnumerable<string> DescribeActionBar()
+    public void ClearLastTurnLog()
     {
-        if (_actionBar is null)
-        {
-            yield return "行動バーは未生成です。";
-            yield break;
-        }
-
-        foreach (var track in _actionBar.Tracks)
-        {
-            var segments = track.Segments
-                .Select(segment => $"{segment.Type} {(int)(segment.Start * 100)}%-{(int)(segment.End * 100)}%")
-                .ToArray();
-            yield return $"{track.Member.Name}: {string.Join(", ", segments)}";
-        }
+        LastTurnLog = Array.Empty<GameMessage>();
     }
 
     void BeginCombat()
     {
         Phase = GamePhase.Combat;
+        LastLockPosition = double.NaN;
         _actionBar = BuildActionBar();
-        AddMessage("戦闘開始！ lock コマンドでバーを停止しましょう。");
+        AddMessage("戦闘開始！行動バーを停止しましょう。", MessageKind.Info);
     }
 
     void PrepareNextTurn()
     {
+        LastLockPosition = double.NaN;
         _actionBar = BuildActionBar();
-        AddMessage("次のターンを準備しました。");
+        AddMessage("次のターンを準備した。", MessageKind.Info);
     }
 
     void GrantVictoryRewards(EncounterBase.EnemyEncounter encounter)
     {
         Level += encounter.EncounterType == EncounterType.Elite ? 2 : 1;
-        AddMessage($"Level {Level} に到達！");
+        AddMessage($"Level {Level} に到達！", MessageKind.Success);
 
         var relicChance = encounter.EncounterType == EncounterType.Elite ? 0.7 : 0.25;
         if (_rng.NextDouble() < relicChance)
         {
             var relic = RelicLibrary.Roll(_rng);
             _relics.Add(relic);
-            AddMessage($"遺物『{relic.Name}』を獲得した！");
+            AddMessage($"遺物『{relic.Name}』を獲得した！", MessageKind.Success);
         }
 
         Phase = GamePhase.SelectingEncounter;
         _currentEncounter = null;
         _actionBar = null;
         GenerateOptions();
-        AddMessage("次の行き先を選択してください。");
+        AddMessage("経路を選択してください。", MessageKind.Info);
     }
 
     void ResolveEventEncounter()
     {
+        LastLockPosition = double.NaN;
         var roll = _rng.Next(3);
         switch (roll)
         {
             case 0:
-                var healTarget = _party[_rng.Next(_party.Count)];
-                healTarget.Heal(6);
-                AddMessage($"イベント: {healTarget.Name} が休息し 6 回復。");
+            {
+                var target = _party[_rng.Next(_party.Count)];
+                target.Heal(6);
+                AddMessage($"イベント: {target.Name} が休息し 6 回復した。", MessageKind.Info);
                 break;
+            }
             case 1:
+            {
                 var relic = RelicLibrary.Roll(_rng);
                 _relics.Add(relic);
-                AddMessage($"イベント: 遺物『{relic.Name}』を入手！");
+                AddMessage($"イベント: 謎の祭壇で遺物『{relic.Name}』を授かった。", MessageKind.Success);
                 break;
+            }
             default:
-                var damageTarget = _party[_rng.Next(_party.Count)];
-                damageTarget.TakeDamage(5);
-                AddMessage($"イベント: 罠により {damageTarget.Name} が 5 ダメージ！");
+            {
+                var target = _party[_rng.Next(_party.Count)];
+                target.TakeDamage(5);
+                AddMessage($"イベント: 罠にかかり {target.Name} が 5 ダメージを受けた。", MessageKind.Warning);
                 break;
+            }
         }
 
         Phase = GamePhase.SelectingEncounter;
@@ -246,62 +265,60 @@ public sealed class RogueliteGame
 
     void ResolveShopEncounter()
     {
-        AddMessage("ショップ: 所持金が無く眺めるだけだった…");
+        LastLockPosition = double.NaN;
+        AddMessage("ショップ: 所持金が足りず、眺めるだけだった…。", MessageKind.Info);
         Phase = GamePhase.SelectingEncounter;
         GenerateOptions();
     }
 
-    void ResolveHeroAction(PartyMember member, ActionType action, Enemy enemy, IList<string> output)
+    GameMessage ResolveHeroAction(PartyMember member, ActionType action, Enemy enemy)
     {
         switch (action)
         {
             case ActionType.Attack:
             {
-                var damage = 4 + Level;
+                var baseDamage = 4 + Level;
                 if (_relics.OfType<AttackBoostRelic>().Any())
                 {
-                    damage += 2;
+                    baseDamage += 2;
                 }
-                enemy.TakeDamage(damage);
-                output.Add($"{member.Name} の攻撃！ {enemy.Name} に {damage} ダメージ。");
-                break;
+                enemy.TakeDamage(baseDamage);
+                return GameMessage.Info($"{member.Name} の攻撃！ {enemy.Name} に {baseDamage} ダメージ。");
             }
             case ActionType.Skill:
             {
                 var heal = 3 + Level / 2;
                 member.Heal(heal);
-                output.Add($"{member.Name} のスキル。自身を {heal} 回復。");
-                break;
+                return GameMessage.Info($"{member.Name} のスキル。自身を {heal} 回復。");
             }
             case ActionType.Rest:
             {
                 var heal = 2;
                 member.Heal(heal);
-                output.Add($"{member.Name} は休憩し {heal} 回復。");
-                break;
+                return GameMessage.Info($"{member.Name} は休息し {heal} 回復。");
             }
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action, null);
         }
     }
 
-    void ResolveEnemyTurn(Enemy enemy, IList<string> output)
+    GameMessage ResolveEnemyTurn(Enemy enemy)
     {
         if (enemy.CurrentHp <= 0)
         {
-            return;
+            return GameMessage.Info($"{enemy.Name} は倒れている。");
         }
 
         var alive = _party.Where(p => !p.IsDown).ToList();
         if (alive.Count == 0)
         {
-            return;
+            return GameMessage.Danger($"{enemy.Name} の咆哮が響く。対抗できる者はいない。");
         }
 
         var target = alive[_rng.Next(alive.Count)];
         var damage = enemy.BaseAttack + Level;
         target.TakeDamage(damage);
-        output.Add($"{enemy.Name} の攻撃！ {target.Name} が {damage} ダメージ（残り {target.CurrentHp}）。");
+        return GameMessage.Danger($"{enemy.Name} の反撃！ {target.Name} が {damage} ダメージ（残り {target.CurrentHp}）。");
     }
 
     void GenerateOptions()
@@ -335,7 +352,7 @@ public sealed class RogueliteGame
                 EncounterType.Elite => $"守護者 Lv{Level + 1}",
                 EncounterType.Event => "謎めいた祭壇",
                 EncounterType.Shop => "旅の商人",
-                _ => "未知"
+                _ => "未知の領域"
             };
 
             _options.Add(new EncounterOption(type, label));
@@ -371,21 +388,11 @@ public sealed class RogueliteGame
         for (var i = 0; i < 3; i++)
         {
             var start = points[i];
-            var end = points[i + 1];
-            if (end - start < 0.05)
-            {
-                end = start + 0.05;
-            }
-            if (end > 1.0)
-            {
-                end = 1.0;
-            }
+            var end = Math.Clamp(points[i + 1], start + 0.05, 1.0);
             segments.Add(new ActionSegment(start, end, actions[i], 1));
         }
 
-        return segments
-            .OrderBy(segment => segment.Start)
-            .ToList();
+        return segments.OrderBy(segment => segment.Start).ToList();
     }
 
     Enemy CreateEnemy(int level)
@@ -402,7 +409,17 @@ public sealed class RogueliteGame
         return new Enemy("鉄甲の守護者", hp, attack);
     }
 
-    void AddMessage(string message) => _messages.Add(message);
+    void AddMessage(string text, MessageKind kind = MessageKind.Info)
+        => AddMessage(new GameMessage(text, kind));
+
+    void AddMessage(GameMessage message)
+    {
+        _messages.Add(message);
+        if (_messages.Count > 200)
+        {
+            _messages.RemoveRange(0, _messages.Count - 200);
+        }
+    }
 
     void Shuffle<T>(IList<T> list)
     {
@@ -595,7 +612,7 @@ public sealed class RogueliteGame
 
     public sealed class OverlapCharmRelic : Relic
     {
-        public OverlapCharmRelic() : base("時間の風車", "攻撃セグメントを広げ、重なりを生み出す")
+        public OverlapCharmRelic() : base("時間の風車", "攻撃セグメントを伸ばし重なりを生む")
         {
         }
 
@@ -628,6 +645,22 @@ public sealed class RogueliteGame
             var roll = rng.NextDouble();
             return roll < 0.6 ? new AttackBoostRelic() : new OverlapCharmRelic();
         }
+    }
+
+    public readonly record struct GameMessage(string Text, MessageKind Kind)
+    {
+        public static GameMessage Info(string text) => new(text, MessageKind.Info);
+        public static GameMessage Warn(string text) => new(text, MessageKind.Warning);
+        public static GameMessage Success(string text) => new(text, MessageKind.Success);
+        public static GameMessage Danger(string text) => new(text, MessageKind.Danger);
+    }
+
+    public enum MessageKind
+    {
+        Info,
+        Warning,
+        Success,
+        Danger
     }
 
     #endregion
