@@ -8,10 +8,33 @@
     element.scrollTop = element.scrollHeight;
   };
 
+  ns.scrollBy = function (element, dx, dy) {
+    if (!element) {
+      return;
+    }
+    element.scrollLeft += dx;
+    element.scrollTop += dy;
+  };
+
+  ns.scrollTo = function (element, left, top) {
+    if (!element) {
+      return;
+    }
+    element.scrollLeft = left;
+    element.scrollTop = top;
+  };
+
+  ns.getScroll = function (element) {
+    if (!element) {
+      return { left: 0, top: 0 };
+    }
+    return { left: element.scrollLeft, top: element.scrollTop };
+  };
+
   function bootBlazor() {
     if (!window.Blazor || ns._bootStarted) {
       return;
-    } 
+    }
     ns._bootStarted = true;
 
     const versionSuffix = 'v=' + Date.now();
