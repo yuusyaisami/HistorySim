@@ -14,20 +14,36 @@
     }
     ns._bootStarted = true;
 
+    const versionSuffix = 'v=' + Date.now();
+    const withBust = function (uri) {
+      return uri + (uri.indexOf('?') >= 0 ? '&' : '?') + versionSuffix;
+    };
+
     Blazor.start({
-      loadBootResource: function (type, name, defaultUri, integrity) {
+      loadBootResource: function (type, name, defaultUri) {
         if (!ns._logOnce) {
           console.log('[HistorySim] loadBootResource override active');
           ns._logOnce = true;
         }
-        if (type === 'wasmNative' && name === 'dotnet.native.wasm') {
-          console.log('[HistorySim] forcing cache bust for dotnet.native.wasm', integrity);
-          return fetch(defaultUri + '?v=' + Date.now(), { cache: 'no-store' });
+
+        switch (type) {
+          case 'dotnetjs': {
+            const uri = withBust(defaultUri);
+            console.log('[HistorySim] dotnetjs ->', uri);
+            return uri;
+          }
+          case 'wasmNative': {
+            if (name === 'dotnet.native.wasm') {
+              const uri = withBust(defaultUri);
+              console.log('[HistorySim] wasmNative ->', uri);
+              return fetch(uri, { cache: 'no-store' });
+            }
+            break;
+          }
+          default:
+            break;
         }
-        if (type === 'dotnetjs') {
-          console.log('[HistorySim] using original dotnetjs script', defaultUri);
-          return defaultUri;
-        }
+
         return fetch(defaultUri, { cache: 'no-store' });
       }
     }).catch(function (err) {
