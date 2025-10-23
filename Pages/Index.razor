@@ -1,406 +1,232 @@
 @page "/"
 @using HistorySim.Game
-@inject HttpClient Http
 @inject IJSRuntime JS
 
-@if (_world is null)
-{
-  <div class="loading-panel">
-    <h1>Generating terrain…</h1>
-    <p>Preparing noise maps and climate bands.</p>
-  </div>
-}
-else
-{
-  var map = _world.Map;
-  var current = map[_cursor];
+<div class="console-root">
+  <header class="console-header">
+    <h1>HistorySim Console</h1>
+    <p>Roguelite prototype — type <code>help</code> for commands</p>
+  </header>
 
-  <div class="shell">
-    <aside class="sidebar">
-      <header>
-        <h1>HistorySim</h1>
-        <p>Procedural world sandbox</p>
-        <small>Seed <strong>@_world.Settings.Seed</strong></small>
-      </header>
+  <section class="console-output" @ref="_logRef">
+    @foreach (var entry in _log)
+    {
+      <div class="log-line @entry.Kind">@entry.Message</div>
+    }
+  </section>
 
-      <nav class="category-tabs">
-        @foreach (var category in Enum.GetValues<ControlCategory>())
-        {
-          var active = category == _activeCategory ? " active" : string.Empty;
-          <button type="button" class="category-tab@active" @onclick="() => SetCategory(category)">
-            @category
-          </button>
-        }
-      </nav>
-
-      <section class="category-panel">
-        @switch (_activeCategory)
-        {
-          case ControlCategory.Overview:
-            <div class="panel-content">
-              <dl class="stats">
-                <div>
-                  <dt>Cursor</dt>
-                  <dd>@_cursor.X , @_cursor.Y</dd>
-                </div>
-                <div>
-                  <dt>Biome</dt>
-                  <dd>@current.Biome</dd>
-                </div>
-                <div>
-                  <dt>Elevation</dt>
-                  <dd>@current.Elevation.ToString("0.00")</dd>
-                </div>
-                <div>
-                  <dt>Temperature</dt>
-                  <dd>@current.Temperature.ToString("0.00")</dd>
-                </div>
-                <div>
-                  <dt>Moisture</dt>
-                  <dd>@current.Moisture.ToString("0.00")</dd>
-                </div>
-              </dl>
-
-              <div class="button-row">
-                <button type="button" class="btn primary" @onclick="() => GenerateWorld(_world.Settings.Seed)">Regenerate seed</button>
-                <button type="button" class="btn secondary" @onclick="() => GenerateWorld(null)">New random seed</button>
-              </div>
-            </div>
-            break;
-
-          case ControlCategory.Generation:
-            <div class="panel-content">
-              <label class="field">
-                <span>Map width</span>
-                <input type="number" min="32" max="256" step="8" @bind-value="_pendingWidth" @bind-value:event="oninput" />
-              </label>
-
-              <label class="field">
-                <span>Map height</span>
-                <input type="number" min="32" max="256" step="8" @bind-value="_pendingHeight" @bind-value:event="oninput" />
-              </label>
-
-              <label class="field">
-                <span>Sea level</span>
-                <input type="range" min="0.30" max="0.70" step="0.01" @bind-value="_pendingSeaLevel" @bind-value:event="oninput" />
-                <output>@_pendingSeaLevel.ToString("0.00")</output>
-              </label>
-
-              <p class="hint">Apply to rebuild the world with the same terrain seed.</p>
-              <div class="button-row">
-                <button type="button" class="btn primary" @onclick="ApplyGenerationChanges">Apply changes</button>
-              </div>
-            </div>
-            break;
-
-          case ControlCategory.Display:
-            <div class="panel-content">
-              <label class="field">
-                <span>Zoom</span>
-                <input type="range" min="@ZoomMinPercent" max="@ZoomMaxPercent" step="5" value="@ZoomPercent" @oninput="OnZoomSliderChanged" />
-                <output>@($"{ZoomPercent:0}%")</output>
-              </label>
-
-              <div class="button-row">
-                <button type="button" class="btn secondary" @onclick="ResetZoom">Reset zoom</button>
-              </div>
-
-              <section class="legend">
-                <h2>Biome legend</h2>
-                <ul>
-                  <li><span class="swatch biome-deepocean"></span>Deep ocean</li>
-                  <li><span class="swatch biome-ocean"></span>Ocean</li>
-                  <li><span class="swatch biome-coast"></span>Coast</li>
-                  <li><span class="swatch biome-plains"></span>Plains</li>
-                  <li><span class="swatch biome-desert"></span>Desert</li>
-                  <li><span class="swatch biome-jungle"></span>Jungle</li>
-                  <li><span class="swatch biome-snow"></span>Snow</li>
-                </ul>
-              </section>
-
-              <p class="hint">
-                Navigation: right-click drag or WASD to pan ・ arrow keys select tile ・ mouse wheel zoom
-              </p>
-            </div>
-            break;
-        }
-      </section>
-    </aside>
-
-    <div class="workspace" tabindex="0" @onkeydown="HandleKey" @ref="_viewportRef">
-      <section class="@GetMapContainerClass()" @ref="_mapRef"
-               style="@GetMapStyle(map.Width)"
-               @onwheel="HandleWheel" @onwheel:preventDefault
-               @onmousedown="HandleMouseDown"
-               @onmouseup="HandleMouseUp"
-               @onmouseleave="HandleMouseUp"
-               @onmousemove="HandleMouseMove"
-               @oncontextmenu:preventDefault>
-        @for (var y = 0; y < map.Height; y++)
-        {
-          for (var x = 0; x < map.Width; x++)
-          {
-            var tile = map[x, y];
-            var sprite = GetTileSprite(tile.Biome);
-            <span class="@GetTileClass(tile, x, y)" style="@GetTileStyle(sprite)" title="@GetTileTooltip(tile)"></span>
-          }
-        }
-      </section>
-    </div>
-  </div>
-}
+  <section class="console-input">
+    <span>&gt;</span>
+    <input @bind="_input" @bind:event="oninput" @onkeydown="HandleInputKey" @ref="_inputRef" placeholder="enter command..." />
+    <button type="button" @onclick="Submit">Enter</button>
+  </section>
+</div>
 
 @code {
-  readonly WorldGenerator _generator = new();
-  readonly Random _random = new();
-  const double BaseCellSize = 16;
-  const double ZoomStep = 0.1;
-  const double ZoomMin = 0.4;
-  const double ZoomMax = 3.0;
+  readonly RogueliteGame _game = new();
+  readonly List<LogEntry> _log = new();
 
-  GameWorld? _world;
-  TileAtlas _atlas = TileAtlas.Empty;
-  GridPosition _cursor;
-  ElementReference _viewportRef;
-  ElementReference _mapRef;
+  string _input = string.Empty;
+  ElementReference _logRef;
+  ElementReference _inputRef;
+  bool _focusRequested = true;
+  bool _scrollPending;
 
-  ControlCategory _activeCategory = ControlCategory.Overview;
-  bool _shouldFocus;
-
-  int _pendingWidth = WorldGenerationSettings.Default.Width;
-  int _pendingHeight = WorldGenerationSettings.Default.Height;
-  double _pendingSeaLevel = WorldGenerationSettings.Default.SeaLevel;
-
-  double _zoom = 1.0;
-  bool _isPanning;
-  (double X, double Y) _panStart;
-  double _panOriginLeft;
-  double _panOriginTop;
-
-  double MapCellSize => Math.Clamp(BaseCellSize * _zoom, 6, 96);
-  double ZoomPercent => Math.Round(_zoom * 100);
-  double ZoomMinPercent => ZoomMin * 100;
-  double ZoomMaxPercent => ZoomMax * 100;
-
-  protected override async Task OnInitializedAsync()
+  protected override void OnInitialized()
   {
-    _atlas = await TileAtlas.LoadAsync(Http, "data/tileset.json");
-    GenerateWorld(null);
+    Write("Welcome to the HistorySim roguelite console.");
+    Write("Type `help` to see available commands.");
   }
 
   protected override async Task OnAfterRenderAsync(bool firstRender)
   {
-    if (_shouldFocus && _world is not null)
+    if (_focusRequested)
     {
-      _shouldFocus = false;
-      await _viewportRef.FocusAsync();
+      _focusRequested = false;
+      await _inputRef.FocusAsync();
+    }
+
+    if (_scrollPending)
+    {
+      _scrollPending = false;
+      await JS.InvokeVoidAsync("historySim.scrollToBottom", _logRef);
     }
   }
 
-  void SetCategory(ControlCategory category)
+  void HandleInputKey(KeyboardEventArgs args)
   {
-    _activeCategory = category;
-  }
-
-  async Task HandleMouseDown(MouseEventArgs args)
-  {
-    if (args.Button == 2) // right click
+    if (args.Key == "Enter")
     {
-      var scroll = await JS.InvokeAsync<ScrollState>("historySim.getScroll", _mapRef);
-      _panOriginLeft = scroll.Left;
-      _panOriginTop = scroll.Top;
-      _panStart = (args.ClientX, args.ClientY);
-      _isPanning = true;
-      StateHasChanged();
+      Submit();
     }
   }
 
-  Task HandleMouseMove(MouseEventArgs args)
+  void Submit()
   {
-    if (!_isPanning)
-    {
-      return Task.CompletedTask;
-    }
-
-    var deltaX = args.ClientX - _panStart.X;
-    var deltaY = args.ClientY - _panStart.Y;
-    var left = _panOriginLeft - deltaX;
-    var top = _panOriginTop - deltaY;
-
-    return JS.InvokeVoidAsync("historySim.scrollTo", _mapRef, left, top).AsTask();
-  }
-
-  void HandleMouseUp(MouseEventArgs _)
-  {
-    if (_isPanning)
-    {
-      _isPanning = false;
-      StateHasChanged();
-    }
-  }
-
-  void HandleKey(KeyboardEventArgs args)
-  {
-    if (_world is null)
+    var command = _input.Trim();
+    if (string.IsNullOrWhiteSpace(command))
     {
       return;
     }
 
-    switch (args.Key)
+    Write($"> {command}", "dim");
+    _input = string.Empty;
+    _focusRequested = true;
+
+    try
     {
-      case "ArrowUp":
-        MoveCursor(0, -1);
+      Execute(command);
+    }
+    catch (Exception ex)
+    {
+      Write($"Error: {ex.Message}", "err");
+    }
+  }
+
+  void Execute(string command)
+  {
+    var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var verb = parts[0].ToLowerInvariant();
+    var args = parts.Skip(1).ToArray();
+
+    switch (verb)
+    {
+      case "help":
+        WriteLines(new[]
+        {
+          "start               - begin a new expedition",
+          "options             - show current path choices",
+          "choose <1-3>        - pick a path option",
+          "status              - view party status",
+          "bar                 - display the current action bar",
+          "lock [0-100]        - stop the action bar (optional percent)",
+          "log                 - echo recent system messages",
+          "reset               - reset game state"
+        }, "dim");
         break;
-      case "ArrowDown":
-        MoveCursor(0, 1);
+
+      case "start":
+        _game.StartNewRun();
+        DumpMessages();
         break;
-      case "ArrowLeft":
-        MoveCursor(-1, 0);
+
+      case "options":
+        if (!_game.Options.Any())
+        {
+          Write("No route options are currently available.", "warn");
+        }
+        else
+        {
+          foreach (var line in _game.DescribeOptions())
+          {
+            Write(line);
+          }
+        }
         break;
-      case "ArrowRight":
-        MoveCursor(1, 0);
+
+      case "choose":
+        if (args.Length == 0 || !int.TryParse(args[0], out var choice))
+        {
+          Write("Choose expects a number between 1 and 3.", "warn");
+          break;
+        }
+        if (_game.TryChooseOption(choice - 1, out var message))
+        {
+          Write(message);
+          DumpMessages();
+        }
+        else
+        {
+          Write(message, "warn");
+        }
         break;
-      case "w":
-      case "W":
-        _ = PanCameraAsync(0, -1);
+
+      case "status":
+        Write(_game.GetStatus(), "dim");
         break;
-      case "s":
-      case "S":
-        _ = PanCameraAsync(0, 1);
+
+      case "bar":
+        foreach (var line in _game.DescribeActionBar())
+        {
+          Write(line);
+        }
         break;
-      case "a":
-      case "A":
-        _ = PanCameraAsync(-1, 0);
+
+      case "lock":
+        ResolveTurn(args);
         break;
-      case "d":
-      case "D":
-        _ = PanCameraAsync(1, 0);
+
+      case "log":
+        DumpMessages();
         break;
-      case "r":
-      case "R":
-        GenerateWorld(_world.Settings.Seed);
+
+      case "reset":
+        _game.Reset();
+        Write("Game state reset.", "warn");
         break;
-      case " ":
-        GenerateWorld(null);
+
+      default:
+        Write("Unknown command. Type `help` for assistance.", "warn");
         break;
     }
   }
 
-  Task PanCameraAsync(int dx, int dy)
+  void ResolveTurn(string[] args)
   {
-    var distance = MapCellSize * 4;
-    return JS.InvokeVoidAsync("historySim.scrollBy", _mapRef, dx * distance, dy * distance).AsTask();
+    double? position = null;
+    if (args.Length > 0 && double.TryParse(args[0], out var percent))
+    {
+      position = Math.Clamp(percent / 100.0, 0, 1);
+    }
+
+    var turnLog = new List<string>();
+    if (_game.TryResolveTurn(position, turnLog, out var combatComplete))
+    {
+      foreach (var line in turnLog)
+      {
+        Write(line);
+      }
+
+      if (combatComplete)
+      {
+        DumpMessages();
+      }
+    }
+    else
+    {
+      foreach (var line in turnLog)
+      {
+        Write(line, "warn");
+      }
+    }
   }
 
-  void MoveCursor(int dx, int dy)
+  void DumpMessages()
   {
-    if (_world is null)
+    foreach (var entry in _game.Messages)
     {
-      return;
+      Write(entry);
     }
+  }
 
-    var nextX = Math.Clamp(_cursor.X + dx, 0, _world.Map.Width - 1);
-    var nextY = Math.Clamp(_cursor.Y + dy, 0, _world.Map.Height - 1);
-
-    if (nextX == _cursor.X && nextY == _cursor.Y)
+  void Write(string message, string kind = "")
+  {
+    _log.Add(new LogEntry(kind, message));
+    if (_log.Count > 600)
     {
-      return;
+      _log.RemoveRange(0, _log.Count - 600);
     }
-
-    _cursor = new GridPosition(nextX, nextY);
+    _scrollPending = true;
     StateHasChanged();
   }
 
-  void HandleWheel(WheelEventArgs args)
+  void WriteLines(IEnumerable<string> lines, string kind = "")
   {
-    var direction = args.DeltaY < 0 ? 1 : -1;
-    var newZoom = Math.Clamp(_zoom + direction * ZoomStep, ZoomMin, ZoomMax);
-    if (Math.Abs(newZoom - _zoom) > double.Epsilon)
+    foreach (var line in lines)
     {
-      _zoom = newZoom;
-      StateHasChanged();
+      Write(line, kind);
     }
   }
 
-  void OnZoomSliderChanged(ChangeEventArgs args)
-  {
-    if (double.TryParse(args?.Value?.ToString(), out var percent))
-    {
-      _zoom = Math.Clamp(percent / 100.0, ZoomMin, ZoomMax);
-      StateHasChanged();
-    }
-  }
-
-  void ResetZoom()
-  {
-    _zoom = 1.0;
-    StateHasChanged();
-  }
-
-  void GenerateWorld(int? seed)
-  {
-    var settings = WorldGenerationSettings.Default with
-    {
-      Seed = seed ?? _random.Next(),
-      Width = _pendingWidth,
-      Height = _pendingHeight,
-      SeaLevel = _pendingSeaLevel
-    };
-
-    _world = _generator.Generate(settings);
-    _pendingWidth = settings.Width;
-    _pendingHeight = settings.Height;
-    _pendingSeaLevel = settings.SeaLevel;
-
-    _cursor = new GridPosition(_world.Map.Width / 2, _world.Map.Height / 2);
-    _shouldFocus = true;
-    StateHasChanged();
-  }
-
-  void ApplyGenerationChanges()
-  {
-    if (_world is null)
-    {
-      return;
-    }
-
-    GenerateWorld(_world.Settings.Seed);
-  }
-
-  string GetTileClass(WorldTile tile, int x, int y)
-  {
-    var classes = $"cell biome-{tile.Biome.ToString().ToLowerInvariant()}";
-    if (_cursor.X == x && _cursor.Y == y)
-    {
-      classes += " selected";
-    }
-    return classes;
-  }
-
-  string GetTileStyle(string spritePath)
-    => string.IsNullOrEmpty(spritePath) ? string.Empty : $"background-image:url('{spritePath}')";
-
-  string GetMapStyle(int width)
-  {
-    var cellSize = MapCellSize;
-    return $"--cell-size:{cellSize:0}px; grid-template-columns: repeat({width}, var(--cell-size));";
-  }
-
-  string GetTileSprite(BiomeType biome)
-    => _atlas.GetSprite(biome);
-
-  string GetMapContainerClass()
-    => _isPanning ? "map panning" : "map";
-
-  static string GetTileTooltip(WorldTile tile)
-    => $"{tile.Biome} – elev {tile.Elevation:0.00}, temp {tile.Temperature:0.00}, moist {tile.Moisture:0.00}";
-
-  private readonly record struct ScrollState(double Left, double Top);
-
-  enum ControlCategory
-  {
-    Overview,
-    Generation,
-    Display
-  }
+  record LogEntry(string Kind, string Message);
 }
