@@ -1,169 +1,160 @@
 @page "/"
-@inject IJSRuntime JS
+@using HistorySim.Game
 
-<div style="max-width:900px;margin:24px auto;padding:16px;font:14px/1.5 ui-monospace,Consolas,monospace;">
-  <h2>HistorySim Console</h2>
-  <div style="background:#080c10;border:1px solid #16202a;border-radius:6px;height:420px;overflow:auto;white-space:pre-wrap;padding:12px;" @ref="_outRef">
-    @foreach (var entry in _logs)
+<div class="viewport" tabindex="0" @onkeydown="HandleKey" @ref="_viewportRef">
+  <section class="hud">
+    <header>
+      <h1>HistorySim Terrain Prototype</h1>
+      <small>Seed <strong>@_world.Settings.Seed</strong></small>
+    </header>
+
+    <dl class="stats">
+      <div>
+        <dt>Cursor</dt>
+        <dd>@_cursor.X , @_cursor.Y</dd>
+      </div>
+      <div>
+        <dt>Biome</dt>
+        <dd>@CurrentTile.Biome</dd>
+      </div>
+      <div>
+        <dt>Elevation</dt>
+        <dd>@CurrentTile.Elevation.ToString("0.00")</dd>
+      </div>
+      <div>
+        <dt>Temperature</dt>
+        <dd>@CurrentTile.Temperature.ToString("0.00")</dd>
+      </div>
+      <div>
+        <dt>Moisture</dt>
+        <dd>@CurrentTile.Moisture.ToString("0.00")</dd>
+      </div>
+    </dl>
+
+    <section class="legend">
+      <h2>Legend</h2>
+      <ul>
+        <li><span class="swatch biome-deepocean"></span>Deep ocean</li>
+        <li><span class="swatch biome-ocean"></span>Ocean</li>
+        <li><span class="swatch biome-coast"></span>Coast</li>
+        <li><span class="swatch biome-plains"></span>Plains</li>
+        <li><span class="swatch biome-desert"></span>Desert</li>
+        <li><span class="swatch biome-jungle"></span>Jungle</li>
+        <li><span class="swatch biome-snow"></span>Snow</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>
+        Controls: WASD / Arrow keys to move ・ R regenerate ・ Space new seed
+      </p>
+    </footer>
+  </section>
+
+  <section class="map" style="@($"grid-template-columns: repeat({_world.Map.Width}, var(--cell-size));")">
+    @for (var y = 0; y < _world.Map.Height; y++)
     {
-      <div class="@entry.Css">@entry.Text</div>
+      for (var x = 0; x < _world.Map.Width; x++)
+      {
+        var tile = _world.Map[x, y];
+        <span class="@GetTileClass(tile, x, y)" title="@GetTileTooltip(tile)"></span>
+      }
     }
-  </div>
-  <div style="display:flex;gap:8px;margin-top:8px;">
-    <input @bind="_input" @bind:event="oninput" @onkeydown="OnKey" placeholder="help と入力、tick / auto on / war / reset" style="flex:1;padding:8px 10px;background:#0d141c;color:#cfe3ff;border:1px solid #1f2a36;border-radius:4px;" />
-    <button @onclick="Run" style="background:#18222e;color:#cfe3ff;border:1px solid #263443;border-radius:4px;padding:8px 10px;cursor:pointer;">Enter</button>
-  </div>
+  </section>
 </div>
 
 @code {
-  readonly List<LogEntry> _logs = new();
-  ElementReference _outRef;
-  string _input = string.Empty;
-  Simulation _sim = new();
-  System.Timers.Timer? _timer;
-  bool _scrollPending;
+  readonly WorldGenerator _generator = new();
+  readonly Random _random = new();
+  GameWorld _world = null!;
+  GridPosition _cursor;
+  ElementReference _viewportRef;
+
+  WorldTile CurrentTile => _world.Map[_cursor];
 
   protected override void OnInitialized()
   {
-    _sim.Reset();
-    Log("HistorySim Console 0.1 - help でコマンド一覧", "dim");
-    Log(_sim.Metrics(), "dim");
+    GenerateWorld(null);
   }
 
   protected override async Task OnAfterRenderAsync(bool firstRender)
   {
-    if (_scrollPending)
+    if (firstRender)
     {
-      _scrollPending = false;
-      await JS.InvokeVoidAsync("historySim.scrollToBottom", _outRef);
+      await _viewportRef.FocusAsync();
     }
   }
 
-  void Log(string msg, string css = "")
+  void HandleKey(KeyboardEventArgs args)
   {
-    _logs.Add(new LogEntry(css, msg));
-    if (_logs.Count > 400)
+    switch (args.Key)
     {
-      _logs.RemoveRange(0, _logs.Count - 400);
+      case "ArrowUp":
+      case "w":
+      case "W":
+        MoveCursor(0, -1);
+        break;
+      case "ArrowDown":
+      case "s":
+      case "S":
+        MoveCursor(0, 1);
+        break;
+      case "ArrowLeft":
+      case "a":
+      case "A":
+        MoveCursor(-1, 0);
+        break;
+      case "ArrowRight":
+      case "d":
+      case "D":
+        MoveCursor(1, 0);
+        break;
+      case "r":
+      case "R":
+        GenerateWorld(_world.Settings.Seed);
+        break;
+      case " ":
+        GenerateWorld(null);
+        break;
     }
-    _scrollPending = true;
   }
 
-  void Run()
+  void MoveCursor(int dx, int dy)
   {
-    var cmd = _input.Trim();
-    _input = string.Empty;
-    Handle(cmd);
-  }
-
-  void OnKey(KeyboardEventArgs e)
-  {
-    if (e.Key == "Enter")
+    var nextX = Math.Clamp(_cursor.X + dx, 0, _world.Map.Width - 1);
+    var nextY = Math.Clamp(_cursor.Y + dy, 0, _world.Map.Height - 1);
+    if (nextX == _cursor.X && nextY == _cursor.Y)
     {
-      Run();
-    }
-  }
-
-  void Handle(string cmd)
-  {
-    if (string.IsNullOrWhiteSpace(cmd))
-    {
-      StateHasChanged();
       return;
     }
-
-    Log($"> {cmd}");
-
-    switch (cmd.ToLowerInvariant())
-    {
-      case "help":
-        Log(string.Join("\n", new[]
-        {
-          "help            - コマンド一覧",
-          "tick            - 1ステップ進める",
-          "auto on/off     - 自動で進める",
-          "war             - 人為的衝突テスト",
-          "reset           - 初期化"
-        }), "dim");
-        break;
-      case "tick":
-        StepOnce();
-        break;
-      case "auto on":
-        if (_timer == null)
-        {
-          _timer = new System.Timers.Timer(300);
-          _timer.Elapsed += (_, _) => InvokeAsync(StepOnce);
-          _timer.AutoReset = true;
-          _timer.Start();
-          Log("自動実行を開始しました。", "dim");
-        }
-        else
-        {
-          Log("自動実行は既に動作中です。", "dim");
-        }
-        break;
-      case "auto off":
-        if (_timer != null)
-        {
-          _timer.Stop();
-          _timer.Dispose();
-          _timer = null;
-          Log("自動実行を停止しました。", "dim");
-        }
-        else
-        {
-          Log("自動実行は停止済みです。", "dim");
-        }
-        break;
-      case "reset":
-        _timer?.Stop();
-        _timer?.Dispose();
-        _timer = null;
-        _sim.Reset();
-        _logs.Clear();
-        Log("== reset ==", "dim");
-        Log(_sim.Metrics(), "dim");
-        break;
-      case "war":
-        _sim.ApplyEvent("人為的衝突", new Delta
-        {
-          Stability = -0.08,
-          Redundancy = -0.05,
-          Correlation = +0.06,
-          Confidence = +0.04
-        }, "ボタンは押されるためにある");
-        Log("[event] 人為的衝突 - ボタンは押されるためにある");
-        Log(_sim.Metrics(), "dim");
-        break;
-      default:
-        Log("未知のコマンドです。help を参照してください。", "err");
-        break;
-    }
-
+    _cursor = new GridPosition(nextX, nextY);
     StateHasChanged();
   }
 
-  void StepOnce()
+  void GenerateWorld(int? seed)
   {
-    var end = _sim.Tick(out var note);
-    if (!string.IsNullOrWhiteSpace(note))
+    var settings = WorldGenerationSettings.Default with
     {
-      Log($"[event] {note}");
-    }
+      Seed = seed ?? _random.Next(),
+      Width = 96,
+      Height = 54
+    };
 
-    Log(_sim.Metrics(), "dim");
-
-    if (end)
-    {
-      Log("== 終焉 ==", "warn");
-      _timer?.Stop();
-      _timer?.Dispose();
-      _timer = null;
-    }
-
+    _world = _generator.Generate(settings);
+    _cursor = new GridPosition(_world.Map.Width / 2, _world.Map.Height / 2);
     StateHasChanged();
   }
 
-  readonly record struct LogEntry(string Css, string Text);
+  string GetTileClass(WorldTile tile, int x, int y)
+  {
+    var classes = $"cell biome-{tile.Biome.ToString().ToLowerInvariant()}";
+    if (_cursor.X == x && _cursor.Y == y)
+    {
+      classes += " selected";
+    }
+    return classes;
+  }
+
+  static string GetTileTooltip(WorldTile tile)
+    => $"{tile.Biome} – elev {tile.Elevation:0.00}, temp {tile.Temperature:0.00}, moist {tile.Moisture:0.00}";
 }

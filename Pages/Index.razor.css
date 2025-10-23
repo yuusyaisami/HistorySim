@@ -1,0 +1,149 @@
+.viewport {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 24px;
+  height: calc(100vh - 48px);
+  box-sizing: border-box;
+  outline: none;
+}
+
+.viewport:focus {
+  box-shadow: 0 0 0 2px #4aa3ff;
+  border-radius: 8px;
+}
+
+.hud {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(12, 18, 26, 0.92);
+  border: 1px solid #1f2a36;
+  border-radius: 12px;
+  color: #d9e6ff;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.hud header h1 {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.hud header small {
+  display: block;
+  color: #7da2d9;
+  font-size: 0.85rem;
+}
+
+.stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: 6px;
+  column-gap: 12px;
+  font-size: 0.95rem;
+}
+
+.stats dt {
+  color: #7fa4cc;
+}
+
+.stats dd {
+  margin: 0;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.legend {
+  border-top: 1px solid #233042;
+  padding-top: 12px;
+}
+
+.legend h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: #98b9e5;
+}
+
+.legend ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.legend .swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.hud footer {
+  margin-top: auto;
+  font-size: 0.85rem;
+  color: #7fa4cc;
+}
+
+.map {
+  --cell-size: 16px;
+  display: grid;
+  grid-auto-rows: var(--cell-size);
+  gap: 1px;
+  padding: 12px;
+  background: #0d141c;
+  border: 1px solid #1e2732;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  overflow: auto;
+}
+
+.cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border-radius: 3px;
+}
+
+.cell.selected {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+}
+
+.biome-deepocean {
+  background: #061933;
+}
+
+.biome-ocean {
+  background: #11497f;
+}
+
+.biome-coast {
+  background: #2a8cd1;
+}
+
+.biome-plains {
+  background: #6aa850;
+}
+
+.biome-desert {
+  background: #d0a04f;
+}
+
+.biome-jungle {
+  background: #2f7c4a;
+}
+
+.biome-snow {
+  background: #e7eff4;
+}
