@@ -11,7 +11,7 @@
   function bootBlazor() {
     if (!window.Blazor || ns._bootStarted) {
       return;
-    }
+    } 
     ns._bootStarted = true;
 
     const versionSuffix = 'v=' + Date.now();
